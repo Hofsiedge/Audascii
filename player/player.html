@@ -1,0 +1,72 @@
+<html>
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/asciinema-player@3.0.1/dist/bundle/asciinema-player.min.css">
+</head>
+<body>
+  <div id="demo" style="width: 50%;">
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/js-untar@2.0.0/build/dist/untar.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/asciinema-player@3.0.1/dist/bundle/asciinema-player.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script>
+      function bindAudascii(playerSlot, url) {
+          fetch(url)
+              .then(response => {
+                  if (!response.ok) {
+                      throw new Error('Network response was not OK');
+                  }
+                  return response.blob();
+              })
+              .then(blob => blob.arrayBuffer())
+              .then(pako.ungzip)
+              .then(arr => untar(arr.buffer))
+              .then(
+                  function(extractedFiles) {
+                      let audio, ascii
+                      if (extractedFiles.length != 2) {
+                          throw new Error(`Unexpected archive format: got these files: ${extractedFiles.map((x) => x.name)}`)
+                      }
+                      if (extractedFiles[0].name.endsWith('.cast')) {
+                          [ascii, audio] = extractedFiles
+                      } else {
+                          [audio, ascii] = extractedFiles
+                      }
+                      playerSlot.innerHTML =
+                          `<audio hidden>
+                              <source src="${audio.getBlobUrl()}" type="audio/ogg">
+                          </audio>`
+                      let audioPlayer = playerSlot.firstElementChild
+                      let player = AsciinemaPlayer.create(
+                          ascii.getBlobUrl(),
+                          playerSlot,
+                      );
+                      
+                      // for some reason `player.addEventListener('play', audioPlayer.play)`
+                      // doesn't work
+                      player.addEventListener('play', () => {
+                          audioPlayer.play()
+                          console.log(player.getDuration(), audioPlayer.duration)
+                      })
+                      player.addEventListener('pause', () => {
+                          audioPlayer.pause()
+                      })
+                      player.addEventListener('ended', () => {
+                          audioPlayer.pause()
+                          audioPlayer.currentTime = 0
+                      })
+                      player.addEventListener('seeked', () => {
+                          audioPlayer.currentTime = player.getCurrentTime()
+                      })
+                  },
+                  function(err) {
+                      throw new Error('Error unpacking the archive: ', err)
+                  },
+              )
+          .catch(err => console.log(err));
+      }
+
+      bindAudascii(document.getElementById('demo'), '/qux.audascii')
+  </script>
+</body>
+</html>
